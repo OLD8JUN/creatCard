@@ -4,7 +4,7 @@ Vue.use(VueRouter)
 
 export const routes = [
     {
-        path:'/index',
+        path:'/',
         component:()=>import('@/views/index/index')
     },
     {
