@@ -38,10 +38,10 @@ export default {
 }
 
 .el-button{
-  margin-right: 200px;
-  margin-left: 200px;
-  width: 300px;
-  height: 200px;
+  margin-right: 100px;
+  margin-left: 100px;
+  width: 400px;
+  height: 300px;
   border-radius: 20px;
   font-size: 50px;
 }

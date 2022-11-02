@@ -19,9 +19,11 @@
       </div>
     </div>
     <div class="button">
+      <el-button @click="goPre">上一步</el-button>
       <el-button @click="getCompetence()" type="primary">打开摄像头</el-button>
       <el-button @click="stopNavigator()" type="warning">关闭摄像头</el-button>
       <el-button @click="setImage()" type="success">拍照</el-button>
+      <el-button @click="goNext()">打印</el-button>
     </div>
   </div>
 </template>
@@ -118,6 +120,7 @@ export default {
       // 获取图片base64链接
       var image = this.thisCancas.toDataURL("image/png");
       _this.imgSrc = image; //赋值并预览图片
+      this.$store.commit('setImage',image)
       let obj = document.getElementById('videoCamera')
       obj.style.marginLeft='325px'
     },
@@ -136,6 +139,12 @@ export default {
         u8arr[n] = bstr.charCodeAt(n);
       }
       return new File([u8arr], filename, {type: mime});
+    },
+    goNext(){
+      this.$parent.goNext()
+    },
+    goPre(){
+      this.$parent.goPre()
     },
   },
 };

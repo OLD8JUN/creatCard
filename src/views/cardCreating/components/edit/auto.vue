@@ -24,7 +24,7 @@
       </el-form>
       <div id="btnArea">
         <el-button @click="showText=true">自动填写</el-button>
-        <el-button>查询</el-button>
+        <el-button @click="goNext()">查询</el-button>
       </div>
     </div>
   </div>
@@ -41,6 +41,16 @@ export default {
         id:null
       }
     }
+  },
+  methods:{
+    goNext() {
+      console.log(this.searchFrom)
+      this.$store.commit('setInformation',this.searchFrom)
+      this.$parent.goNext()
+    },
+    goPre(){
+      this.$parent.goPre()
+    },
   }
 }
 </script>
