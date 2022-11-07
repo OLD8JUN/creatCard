@@ -5,9 +5,9 @@
         <img id="img" :src=this.image>
       </div>
       <el-form>
-        <el-form-item>姓名:黄育钧</el-form-item>
+        <el-form-item>姓名:{{this.information.name}}</el-form-item>
         <el-form-item>部门:芯彩智能</el-form-item>
-        <el-form-item>工号:1190113188</el-form-item>
+        <el-form-item>工号:{{this.information.id}}</el-form-item>
       </el-form>
   </div>
   <div id="btn">
@@ -23,7 +23,7 @@ export default {
   data(){
     return{
       image:null,
-      infomation:null
+      information:null,
     }
   },
   mounted() {
@@ -31,13 +31,14 @@ export default {
   },
   created() {
     this.image=this.$store.state.image
-    this.infomation=this.$store.state.infomation
-    console.log(this.$store.state.image)
-    console.log(this.$store.state.information)
+    this.information=this.$store.state.information
+    // console.log(this.image)
+    // console.log(this.information)
     // document.getElementById('img').setAttribute('src',)
   },
   methods:{
     goPre(){
+
       this.$parent.goPre()
     },
     goNext(){

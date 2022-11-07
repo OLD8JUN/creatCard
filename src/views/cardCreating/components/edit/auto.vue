@@ -44,7 +44,6 @@ export default {
   },
   methods:{
     goNext() {
-      console.log(this.searchFrom)
       this.$store.commit('setInformation',this.searchFrom)
       this.$parent.goNext()
     },

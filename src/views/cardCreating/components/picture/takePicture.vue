@@ -1,168 +1,128 @@
 <template>
   <div>
-    <div class="camera_outer">
-      <video
-          id="videoCamera"
-          :width="videoWidth"
-          :height="videoHeight"
-          autoplay
-      ></video>
-      <canvas
-          style="display: none"
-          id="canvasCamera"
-          :width="videoWidth"
-          :height="videoHeight"
-      ></canvas>
-      <div v-if="imgSrc" class="img_bg_camera">
-        <p style="color: white;height: 20px;margin-top: 0px;margin-bottom: 10px">效果预览</p>
-        <img :src="imgSrc" alt class="tx_img"/>
-      </div>
+    <div id="contentHolder">
+      <video id="video" ref="video" autoplay style="background-color: rgba(0,0,0,0%)" :width="videoWidth"
+             :height="videoWidth"></video>
+      <canvas id="canvas" :height="videoHeight" :width="videoWidth"></canvas>
+      <canvas id="canvas_bg" style="display: none" :height="videoHeight" :width="videoWidth"></canvas>
+      <img id="imgXX" src="" :width="videoWidth" :height="videoHeight"/>
     </div>
-    <div class="button">
-      <el-button @click="goPre">上一步</el-button>
-      <el-button @click="getCompetence()" type="primary">打开摄像头</el-button>
-      <el-button @click="stopNavigator()" type="warning">关闭摄像头</el-button>
-      <el-button @click="setImage()" type="success">拍照</el-button>
-      <el-button @click="goNext()">打印</el-button>
-    </div>
+    <button id="btn_snap" onclick="takePhoto()">拍照</button>
+    <input type="color" oninput="changeBgColor(this.value)" value="#0066cc"/>
   </div>
 </template>
+
 <script>
+import * as bodyPix from '@tensorflow-models/body-pix';
+import * as tf from '@tensorflow/tfjs';
 export default {
-  name: 'takePicture',
+  name: 'App',
   data() {
     return {
-      videoWidth: 200,
+      videoWidth: 300,
       videoHeight: 300,
-      imgSrc: "",
       thisCancas: null,
       thisContext: null,
-      thisVideo: null,
-      openVideo: false,
-    };
+      model: {
+        architecture: 'MobileNetV1',
+        outputStride: 16,
+        multiplier: 0.75,
+        quantBytes: 2
+      },
+      radio: 2,
+      bcRadio: 0,
+      videoCanvas: null,     // 处理后的视频帧的绘制区域
+      net: null,
+      backgroundImg: null,
+
+
+    }
   },
   mounted() {
-    this.getCompetence(); //进入页面就调用摄像头
+    this.init()
+  },
+  created() {
   },
   methods: {
-    // 调用权限（打开摄像头功能）
-    getCompetence() {
-      var _this = this;
-      _this.thisCancas = document.getElementById("canvasCamera");
-      _this.thisContext = this.thisCancas.getContext("2d");
-      _this.thisVideo = document.getElementById("videoCamera");
-      _this.thisVideo.style.display = "block";
-      // 获取媒体属性，旧版本浏览器可能不支持mediaDevices，我们首先设置一个空对象
-      if (navigator.mediaDevices === undefined) {
-        navigator.mediaDevices = {};
+    async init(){
+      const video = document.querySelector('video');
+      const canvas = document.getElementById('canvas');
+      const webcam = await tf.data.webcam(video);
+      const modelUrl = 'https://storage.googleapis.com/tfjs-models/savedmodel/mobilenet_v2_1.0_224/model.json'
+      const model = await tf.loadGraphModel(modelUrl);
+
+      let [r1i, r2i, r3i, r4i] = [tf.tensor(0.), tf.tensor(0.), tf.tensor(0.), tf.tensor(0.)];
+
+      const downsample_ratio = tf.tensor(0.5);
+      while (true) {
+        await tf.nextFrame();
+        const img = await webcam.capture();
+        const src = tf.tidy(() => img.expandDims(0).div(255));
+        const [fgr, pha, r1o, r2o, r3o, r4o] = await model.executeAsync(
+            { src, r1i, r2i, r3i, r4i, downsample_ratio },
+            ['fgr', 'pha', 'r1o', 'r2o', 'r3o', 'r4o']
+        );
+        this.drawMatte(fgr.clone(), pha.clone(), canvas);
+        tf.dispose([img, src, fgr, pha, r1i, r2i, r3i, r4i]);
+        [r1i, r2i, r3i, r4i] = [r1o, r2o, r3o, r4o];
       }
-      // 一些浏览器实现了部分mediaDevices，我们不能只分配一个对象
-      // 使用getUserMedia，因为它会覆盖现有的属性。
-      // 这里，如果缺少getUserMedia属性，就添加它。
-      if (navigator.mediaDevices.getUserMedia === undefined) {
-        navigator.mediaDevices.getUserMedia = function (constraints) {
-          // 首先获取现存的getUserMedia(如果存在)
-          var getUserMedia =
-              navigator.webkitGetUserMedia ||
-              navigator.mozGetUserMedia ||
-              navigator.getUserMedia;
-          // 有些浏览器不支持，会返回错误信息
-          // 保持接口一致
-          if (!getUserMedia) {
-            //不存在则报错
-            return Promise.reject(
-                new Error("getUserMedia is not implemented in this browser")
-            );
-          }
-          // 否则，使用Promise将调用包装到旧的navigator.getUserMedia
-          return new Promise(function (resolve, reject) {
-            getUserMedia.call(navigator, constraints, resolve, reject);
-          });
-        };
-      }
-      var constraints = {
-        audio: false,
-        video: {
-          width: this.videoWidth,
-          height: this.videoHeight,
-          transform: "scaleX(-1)",
-        },
-      };
-      navigator.mediaDevices
-          .getUserMedia(constraints)
-          .then(function (stream) {
-            // 旧的浏览器可能没有srcObject
-            if ("srcObject" in _this.thisVideo) {
-              _this.thisVideo.srcObject = stream;
-            } else {
-              // 避免在新的浏览器中使用它，因为它正在被弃用。
-              _this.thisVideo.src = window.URL.createObjectURL(stream);
-            }
-            _this.thisVideo.onloadedmetadata = function (e) {
-              _this.thisVideo.play();
-            };
-          })
-          .catch((err) => {
-            console.log(err);
-          });
     },
-    //  绘制图片（拍照功能）
-    setImage() {
-      var _this = this;
-      // canvas画图
-      _this.thisContext.drawImage(
-          _this.thisVideo,
-          0,
-          0,
-          _this.videoWidth,
-          _this.videoHeight
-      );
-      // 获取图片base64链接
-      var image = this.thisCancas.toDataURL("image/png");
-      _this.imgSrc = image; //赋值并预览图片
-      this.$store.commit('setImage',image)
-      let obj = document.getElementById('videoCamera')
-      obj.style.marginLeft='325px'
-    },
-    // 关闭摄像头
-    stopNavigator() {
-      this.thisVideo.srcObject.getTracks()[0].stop();
-    },
-    // base64转文件，此处没用到
-    dataURLtoFile(dataurl, filename) {
-      var arr = dataurl.split(",");
-      var mime = arr[0].match(/:(.*?);/)[1];
-      var bstr = atob(arr[1]);
-      var n = bstr.length;
-      var u8arr = new Uint8Array(n);
-      while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-      }
-      return new File([u8arr], filename, {type: mime});
-    },
-    goNext(){
-      this.$parent.goNext()
-    },
-    goPre(){
-      this.$parent.goPre()
-    },
-  },
-};
+    async drawMatte(fgr, pha, canvas) {
+      const canvas_bg = document.getElementById('canvas_bg');
+      const rgba = tf.tidy(() => {
+        const rgb = (fgr !== null) ?
+            fgr.squeeze(0).mul(255).cast('int32') :
+            tf.fill([pha.shape[1], pha.shape[2], 3], 255, 'int32');
+        const a = (pha !== null) ?
+            pha.squeeze(0).mul(255).cast('int32') :
+            tf.fill([fgr.shape[1], fgr.shape[2], 1], 255, 'int32');
+        return tf.concat([rgb, a], -1);
+      });
+
+      fgr && fgr.dispose();
+      pha && pha.dispose();
+      const [height, width] = rgba.shape.slice(0, 2);
+      const pixelData = new Uint8ClampedArray(await rgba.data());
+      const imageData = new ImageData(pixelData, width, height);
+      canvas.width = width;
+      canvas.height = height;
+      var context = canvas.getContext("2d")
+      context.putImageData(imageData, 0, 0);
+      context.getImageData(0, 0, width, height)
+      context.globalCompositeOperation = "destination-over"
+      context.drawImage(canvas_bg, 0, 0)
+      rgba.dispose();
+    }
+  }
+}
 </script>
-<style scoped>
-.camera_outer {
+
+<style>
+.root {
+  margin: 40px 50px;
+}
+
+.operation {
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.container {
+  margin-top: 20px;
   display: flex;
 }
 
-#videoCamera {
-  margin-left: 425px;
+.video {
+  padding: 20px;
 }
 
-.img_bg_camera {
-  margin-top: -30px;
-  margin-left: 50px;
+.bc-img {
+  width: 144px;
+  height: 108px;
 }
-.button{
-  margin-top: 50px;
+
+.flipHorizontal {
+  transform: rotateY(180deg);
 }
 </style>
